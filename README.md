@@ -15,7 +15,8 @@ DP
 
 ### 3. Алгоритмы
 
-* Blocking socket
+* Socket, one thread
+* Socket, multithread
 * Non-blocking socket
 * ZeroMQ Request Reply
 * ZeroMQ Proxy and workers
