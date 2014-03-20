@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
             perror("Server-bind() error!");
             exit(1);
     }
-    if(listen(listener, 300) == -1)
+    if(listen(listener, 3000) == -1)
     {
             perror("Server-listen() error!");
             exit(1);
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
                                     close(client_fd);
                             } else {
 				    char buf[6];
-				    int ret = read(client_fd, buf, 6);
+				    int ret = read(client_fd, buf, 5);
                                     if(ret <= 0) {
 					    //if (errno == EAGAIN) continue;
 					    if (ret != 0) perror("recv");

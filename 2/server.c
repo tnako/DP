@@ -40,7 +40,7 @@ int main(int argc , char *argv[])
     }
      
     //Listen
-    listen(socket_desc , 300);
+    listen(socket_desc , 9000);
 
     c = sizeof(struct sockaddr_in);
      
@@ -81,10 +81,10 @@ void *connection_handler(void *socket_desc)
     char *message , client_message[6];
      
     //Receive a message from client
-    while( (read_size = recv(sock , client_message , 6 , 0)) > 0 )
+    while( (read_size = recv(sock , client_message , 5 , 0)) > 0 )
     {
         //Send the message back to client
-        write(sock , client_message , strlen(client_message));
+        write(sock , client_message , read_size);
     }
      
     if(read_size == -1)

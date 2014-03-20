@@ -7,12 +7,13 @@
 #include <unistd.h>
 #include <netinet/in.h>
 
-#define SIZE 100000
+#define SIZE 200000
 void Die(char *mess) { perror(mess); exit(1); }
 
 int pid;
 int gcper;
 int max_cper;
+int min_cper = 999999999;
 int done;
 
 static void *sender_task (void *args)
@@ -37,11 +38,12 @@ static void *sender_task (void *args)
     
     start = zclock_time ();
     for (requests = 0; requests < SIZE; requests++) { 
-	if (send(sock, "hello", 6, 0) != 6) {
+	if (send(sock, "hello", 5, 0) != 5) {
 	  Die("Mismatch in number of sent bytes");
 	}
-	
-	if ((recv(sock, buffer, 6, 0)) < 1) {
+    }
+    for (requests = 0; requests < SIZE; requests++) { 
+	if ((recv(sock, buffer, 5, 0)) < 1) {
 	  Die("Failed to receive bytes from server");
 	}
 	
@@ -51,6 +53,9 @@ static void *sender_task (void *args)
     
     if (max_cper < cpers) {
       max_cper = cpers;
+    }
+    if (min_cper > cpers) {
+      min_cper = cpers;
     }
     
     close(sock);
@@ -66,7 +71,7 @@ int main (void)
     
     int test;
 
-    printf ("threads | avg | max\n");
+    printf ("threads | min | avg | max\n");
     int64_t start = zclock_time ();
     for (test = 0; test < 8; ++test) {
       pid = 1;
@@ -82,7 +87,7 @@ int main (void)
       while (done != threads) {
 	zclock_sleep (100);
       }
-      printf ("%d %d %d\n", threads, gcper / threads, max_cper);
+      printf ("%d %d %d %d\n", threads, min_cper, gcper / threads, max_cper);
       
       threads *= 2;
     }

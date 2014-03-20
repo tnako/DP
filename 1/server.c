@@ -38,7 +38,7 @@ int main(int argc , char *argv[])
     puts("bind done");
      
     //Listen
-    listen(socket_desc , 103);
+    listen(socket_desc , 5000);
      
     //Accept and incoming connection
     puts("Waiting for incoming connections...");
@@ -54,11 +54,11 @@ int main(int argc , char *argv[])
 	}
 	
 	//Receive a message from client
-	while( (read_size = recv(client_sock , client_message , 6 , 0)) > 0 )
+	while( (read_size = recv(client_sock , client_message , 5 , 0)) > 0 )
 	{
 	    //printf("<- %s\n", client_message);
 	    //Send the message back to client
-	    write(client_sock , client_message , strlen(client_message));
+	    write(client_sock , client_message , read_size);
 	    memset(client_message, 0x0, sizeof(char)*6);
 	}
 	
