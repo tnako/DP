@@ -1,7 +1,10 @@
-#include "czmq.h"
-#define NBR_WORKERS 5
-#define WORKER_READY   "\001"      //  Signals worker is ready
+//  Load-balancing broker
+//  Demonstrates use of the CZMQ API
 
+#include "czmq.h"
+
+#define NBR_WORKERS 3
+#define WORKER_READY   "\001"      //  Signals worker is ready
 
 //  Worker using REQ socket to do load-balancing
 //
@@ -28,95 +31,69 @@ worker_task (void *args)
     return NULL;
 }
 
-//  Our load-balancer structure, passed to reactor handlers
-typedef struct {
-    void *frontend;             //  Listen to clients
-    void *backend;              //  Listen to workers
-    zlist_t *workers;           //  List of ready workers
-} lbbroker_t;
-
-//  In the reactor design, each time a message arrives on a socket, the
-//  reactor passes it to a handler function. We have two handlers; one
-//  for the frontend, one for the backend:
-
-//  Handle input from client, on frontend
-int s_handle_frontend (zloop_t *loop, zmq_pollitem_t *poller, void *arg)
-{
-    lbbroker_t *self = (lbbroker_t *) arg;
-    zmsg_t *msg = zmsg_recv (self->frontend);
-    if (msg) {
-        zmsg_wrap (msg, (zframe_t *) zlist_pop (self->workers));
-        zmsg_send (&msg, self->backend);
-
-        //  Cancel reader on frontend if we went from 1 to 0 workers
-        if (zlist_size (self->workers) == 0) {
-            zmq_pollitem_t poller = { self->frontend, 0, ZMQ_POLLIN };
-            zloop_poller_end (loop, &poller);
-        }
-    }
-    return 0;
-}
-
-//  Handle input from worker, on backend
-int s_handle_backend (zloop_t *loop, zmq_pollitem_t *poller, void *arg)
-{
-    //  Use worker identity for load-balancing
-    lbbroker_t *self = (lbbroker_t *) arg;
-    zmsg_t *msg = zmsg_recv (self->backend);
-    if (msg) {
-        zframe_t *identity = zmsg_unwrap (msg);
-        zlist_append (self->workers, identity);
-
-        //  Enable reader on frontend if we went from 0 to 1 workers
-        if (zlist_size (self->workers) == 1) {
-            zmq_pollitem_t poller = { self->frontend, 0, ZMQ_POLLIN };
-            zloop_poller (loop, &poller, s_handle_frontend, self);
-        }
-        //  Forward message to client if it's not a READY
-        zframe_t *frame = zmsg_first (msg);
-        if (memcmp (zframe_data (frame), WORKER_READY, 1) == 0)
-            zmsg_destroy (&msg);
-        else
-            zmsg_send (&msg, self->frontend);
-    }
-    return 0;
-}
-
-//  And the main task now sets up child tasks, then starts its reactor.
-//  If you press Ctrl-C, the reactor exits and the main task shuts down.
-//  Because the reactor is a CZMQ class, this example may not translate
-//  into all languages equally well.
+//  Now we come to the main task. This has the identical functionality to
+//  the previous lbbroker broker example, but uses CZMQ to start child
+//  threads, to hold the list of workers, and to read and send messages:
 
 int main (void)
 {
     zctx_t *ctx = zctx_new ();
-    lbbroker_t *self = (lbbroker_t *) zmalloc (sizeof (lbbroker_t));
-    self->frontend = zsocket_new (ctx, ZMQ_ROUTER);
-    self->backend = zsocket_new (ctx, ZMQ_ROUTER);
-    zsocket_bind (self->frontend, "tcp://*:12345");
-    zsocket_bind (self->backend, "ipc://backend.ipc");
+    void *frontend = zsocket_new (ctx, ZMQ_ROUTER);
+    void *backend = zsocket_new (ctx, ZMQ_ROUTER);
+    zsocket_bind (frontend, "tcp://*:12345");
+    zsocket_bind (backend, "ipc://backend.ipc");
 
     int worker_nbr;
     for (worker_nbr = 0; worker_nbr < NBR_WORKERS; worker_nbr++)
         zthread_new (worker_task, NULL);
 
     //  Queue of available workers
-    self->workers = zlist_new ();
+    zlist_t *workers = zlist_new ();
 
-    //  Prepare reactor and fire it up
-    zloop_t *reactor = zloop_new ();
-    zmq_pollitem_t poller = { self->backend, 0, ZMQ_POLLIN };
-    zloop_poller (reactor, &poller, s_handle_backend, self);
-    zloop_start  (reactor);
-    zloop_destroy (&reactor);
+    //  Here is the main loop for the load balancer. It works the same way
+    //  as the previous example, but is a lot shorter because CZMQ gives
+    //  us an API that does more with fewer calls:
+    while (true) {
+        zmq_pollitem_t items [] = {
+            { backend,  0, ZMQ_POLLIN, 0 },
+            { frontend, 0, ZMQ_POLLIN, 0 }
+        };
+        //  Poll frontend only if we have available workers
+        int rc = zmq_poll (items, zlist_size (workers)? 2: 1, -1);
+        if (rc == -1)
+            break;              //  Interrupted
 
+        //  Handle worker activity on backend
+        if (items [0].revents & ZMQ_POLLIN) {
+            //  Use worker identity for load-balancing
+            zmsg_t *msg = zmsg_recv (backend);
+            if (!msg)
+                break;          //  Interrupted
+            zframe_t *identity = zmsg_unwrap (msg);
+            zlist_append (workers, identity);
+
+            //  Forward message to client if it's not a READY
+            zframe_t *frame = zmsg_first (msg);
+            if (memcmp (zframe_data (frame), WORKER_READY, 1) == 0)
+                zmsg_destroy (&msg);
+            else
+                zmsg_send (&msg, frontend);
+        }
+        if (items [1].revents & ZMQ_POLLIN) {
+            //  Get client request, route to first available worker
+            zmsg_t *msg = zmsg_recv (frontend);
+            if (msg) {
+                zmsg_wrap (msg, (zframe_t *) zlist_pop (workers));
+                zmsg_send (&msg, backend);
+            }
+        }
+    }
     //  When we're done, clean up properly
-    while (zlist_size (self->workers)) {
-        zframe_t *frame = (zframe_t *) zlist_pop (self->workers);
+    while (zlist_size (workers)) {
+        zframe_t *frame = (zframe_t *) zlist_pop (workers);
         zframe_destroy (&frame);
     }
-    zlist_destroy (&self->workers);
+    zlist_destroy (&workers);
     zctx_destroy (&ctx);
-    free (self);
     return 0;
 }

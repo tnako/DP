@@ -16,12 +16,12 @@
 #include <sys/resource.h>
 
 #include <glib.h>
-#include <czmq.h>
+#include <zmq.h>
 
 
 #define CYCLES 1
-#define MAX_THREADS 128 // x2
-#define MAX_CONNECTIONS 16
+#define MAX_THREADS 4096 // x2
+#define MAX_CONNECTIONS 2
 #define MESSAGES 200000
 
 
@@ -139,7 +139,7 @@ void* run_test(void  *threadid)
                 return NULL;
             }
 
-            zmq_connect(requester[i], "tcp://127.0.0.1:12345");
+            zmq_connect(requester[i], "tcp://10.2.142.102:12345");
 
             if (sd[i]) {
                 g_hash_table_insert(sockets, GINT_TO_POINTER(sd[i]), GINT_TO_POINTER(0));
