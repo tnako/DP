@@ -1,3 +1,4 @@
+#include <zmq.h>
 
 #define MDPC_CLIENT         "MDPC01"
 
@@ -43,9 +44,9 @@ int mdcli_send(mdcli_t *self, char *service, zmsg_t **request_p)
     //  Frame 0: empty (REQ emulation)
     //  Frame 1: "MDPCxy" (six bytes, MDP/Client x.y)
     //  Frame 2: Service name (printable string)
-    zmsg_pushstr (request, service);
-    zmsg_pushstr (request, MDPC_CLIENT);
-    zmsg_pushstr (request, "");
+    zmsg_pushstr(request, service);
+    zmsg_pushstr(request, MDPC_CLIENT);
+    zmsg_pushstr(request, "");
         zclock_log ("I: send request to '%s' service:", service);
         zmsg_dump (request);
     zmsg_send (&request, self->client);
@@ -86,13 +87,13 @@ zmsg_t *mdcli_recv(mdcli_t *self)
 
     //  If we got a reply, process it
     if (items[0].revents & ZMQ_POLLIN) {
-        zmsg_t *msg = zmsg_recv (self->client);
+        zmsg_t *msg = zmsg_recv(self->client);
             zclock_log ("I: received reply:");
             zmsg_dump (msg);
         //  Don't try to handle errors, just assert noisily
         assert (zmsg_size(msg) >= 4);
 
-        zframe_t *empty = zmsg_pop (msg);
+        zframe_t *empty = zmsg_pop(msg);
         assert (zframe_streq(empty, ""));
         zframe_destroy(&empty);
 
@@ -108,7 +109,7 @@ zmsg_t *mdcli_recv(mdcli_t *self)
     
     if (zctx_interrupted) {
         printf ("W: interrupt received, killing client...\n");
-    } else if (self->verbose) {
+    } else {
         zclock_log ("W: permanent error, abandoning request");
     }
 
