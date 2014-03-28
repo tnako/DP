@@ -216,7 +216,7 @@ static void s_worker_delete (worker_t *self, int disconnect)
 {
     assert (self);
     if (disconnect) {
-        s_worker_send (self, MDPW_DISCONNECT, NULL, NULL);
+        s_worker_send (self, MDPW_DISCONNECT, NULL, NULL); // ! Расширить до отключение через mmi
 	}
 
     if (self->service) {
@@ -346,6 +346,7 @@ int main ()
         }
         //  Disconnect and delete any expired workers
         //  Send heartbeats to idle workers if needed
+! // Зачем посылать им, пусть они нам присылают
         if (zclock_time() > self->heartbeat_at) {
             s_broker_purge(self);
             worker_t *worker = (worker_t *) zlist_first(self->waiting);
