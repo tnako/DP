@@ -122,7 +122,7 @@ int main (int argc, char *argv [])
 
     //  1. Send 'hello'
     zmsg_t *request = zmsg_new();
-    zmsg_addstr(request, "hello");
+    zmsg_addstr(request, "echo");
     zmsg_addstr(request, "Hello world");
     zmsg_t *reply = s_service_call(session, "titanic.request", &request);
 

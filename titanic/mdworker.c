@@ -2,7 +2,7 @@
 //  Uses the mdwrk API to hide all MDP aspects
 
 //  Lets us build this source without creating a library
-#include "mdwrkapi.c"
+#include <zmq.h>
 
 int main (int argc, char *argv [])
 {
