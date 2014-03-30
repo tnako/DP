@@ -1,4 +1,4 @@
-#include <zmq.h>
+#include <czmq.h>
 
 
 #define MDPC_CLIENT         "MDPC01"
@@ -14,6 +14,10 @@
 #define HEARTBEAT_INTERVAL  2500    //  msecs
 #define HEARTBEAT_EXPIRY    HEARTBEAT_INTERVAL * HEARTBEAT_LIVENESS
 
+
+static char *mdps_commands [] = {
+    NULL, "READY", "REQUEST", "REPLY", "HEARTBEAT", "DISCONNECT"
+};
 
 typedef struct {
     zctx_t *ctx;                //  Our context
@@ -94,6 +98,40 @@ static service_t *s_service_require(broker_t *self, zframe_t *service_frame)
     return service;
 }
 
+static void s_worker_send(worker_t *self, char *command, zmsg_t *msg)
+{
+    msg = (msg ? zmsg_dup(msg): zmsg_new());
+	
+    zmsg_pushstr(msg, command);
+    zmsg_pushstr(msg, MDPW_WORKER);
+
+    //  Stack routing envelope to start of message
+    zmsg_wrap(msg, zframe_dup(self->identity));
+
+    if (self->broker->verbose) {
+        zclock_log ("I: sending %s to worker", mdps_commands [(int) *command]);
+        zmsg_dump(msg);
+    }
+    zmsg_send(&msg, self->broker->socket);
+}
+
+static void s_worker_delete(worker_t *self, int disconnect)
+{
+    assert (self);
+    if (disconnect) {
+        s_worker_send (self, MDPW_DISCONNECT, NULL); // ! Расширить до отключение через mmi
+	}
+
+    if (self->service) {
+        zlist_remove (self->service->waiting, self);
+        self->service->workers--;
+    }
+    
+    zlist_remove (self->broker->waiting, self);
+    //  This implicitly calls s_worker_destroy
+    zhash_delete (self->broker->workers, self->id_string);
+}
+
 static void s_broker_purge(broker_t *self)
 {
     worker_t *worker = (worker_t *) zlist_first(self->waiting);
@@ -109,23 +147,6 @@ static void s_broker_purge(broker_t *self)
         s_worker_delete(worker, 0);
         worker = (worker_t *) zlist_first (self->waiting);
     }
-}
-
-static void s_worker_send(worker_t *self, char *command, zmsg_t *msg)
-{
-    msg = (msg ? zmsg_dup(msg): zmsg_new());
-	
-    zmsg_pushstr(msg, command);
-    zmsg_pushstr(msg, MDPW_WORKER);
-
-    //  Stack routing envelope to start of message
-!    zmsg_wrap(msg, zframe_dup(self->identity));
-
-    if (self->broker->verbose) {
-        zclock_log ("I: sending %s to worker", mdps_commands [(int) *command]);
-        zmsg_dump(msg);
-    }
-    zmsg_send(&msg, self->broker->socket);
 }
 
 static void s_service_dispatch(service_t *self, zmsg_t *msg)
@@ -151,11 +172,10 @@ static void s_broker_client_msg(broker_t *self, zframe_t *sender, zmsg_t *msg)
 
     zframe_t *service_frame = zmsg_pop(msg);
     service_t *service = s_service_require(self, service_frame);
-! // Не должен создавать сервис, в случаи запроса от клиента
+ // Не должен создавать сервис, в случаи запроса от клиента
 
     //  Set reply return identity to client sender
-!    zmsg_wrap(msg, zframe_dup(sender));
-// Что делают эти функции?
+    zmsg_wrap(msg, zframe_dup(sender));
 
     //  If we got a MMI service request, process that internally
     if (zframe_size(service_frame) >= 4 &&  memcmp(zframe_data(service_frame), "mmi.", 4) == 0) {
@@ -164,17 +184,25 @@ static void s_broker_client_msg(broker_t *self, zframe_t *sender, zmsg_t *msg)
         if (zframe_streq(service_frame, "mmi.service")) {
             char *name = zframe_strdup (zmsg_last (msg));
             service_t *service = (service_t *) zhash_lookup(self->services, name);
-            return_code = service && (service->workers ? "200": "404");
+			if (service) {
+			  if (service->workers) {
+				return_code = "200";
+			  } else {
+				return_code = "404";
+			  }
+			} else {
+			  return_code = "401";
+			}
             free(name);
         } else {
             return_code = "501";
 		}
 
-!        zframe_reset(zmsg_last(msg), return_code, strlen(return_code));
+        zframe_reset(zmsg_last(msg), return_code, strlen(return_code));
 
         //  Remove & save client return envelope and insert the
         //  protocol header and service name, then rewrap envelope.
-!        zframe_t *client = zmsg_unwrap (msg);
+        zframe_t *client = zmsg_unwrap (msg);
         zmsg_push(msg, zframe_dup(service_frame));
         zmsg_pushstr(msg, MDPC_CLIENT);
         zmsg_wrap(msg, client);
@@ -185,6 +213,14 @@ static void s_broker_client_msg(broker_t *self, zframe_t *sender, zmsg_t *msg)
 	}
 	
     zframe_destroy(&service_frame);
+}
+
+static void s_worker_destroy(void *argument)
+{
+    worker_t *self = (worker_t *) argument;
+    zframe_destroy(&self->identity);
+    free(self->id_string);
+    free(self);
 }
 
 static worker_t *s_worker_require(broker_t *self, zframe_t *identity)
@@ -212,23 +248,6 @@ static worker_t *s_worker_require(broker_t *self, zframe_t *identity)
     return worker;
 }
 
-static void s_worker_delete (worker_t *self, int disconnect)
-{
-    assert (self);
-    if (disconnect) {
-        s_worker_send (self, MDPW_DISCONNECT, NULL, NULL); // ! Расширить до отключение через mmi
-	}
-
-    if (self->service) {
-        zlist_remove (self->service->waiting, self);
-        self->service->workers--;
-    }
-    
-    zlist_remove (self->broker->waiting, self);
-    //  This implicitly calls s_worker_destroy
-    zhash_delete (self->broker->workers, self->id_string);
-}
-
 static void s_worker_waiting (worker_t *self)
 {
     //  Queue to broker and service waiting lists
@@ -244,7 +263,7 @@ static void s_broker_worker_msg(broker_t *self, zframe_t *sender, zmsg_t *msg)
     assert (zmsg_size(msg) >= 1);     //  At least, command
 
     zframe_t *command = zmsg_pop(msg);
-!    char *id_string = zframe_strhex(sender);
+    char *id_string = zframe_strhex(sender);
     int worker_ready = (zhash_lookup(self->workers, id_string) != NULL);
     free (id_string);
 	
@@ -326,7 +345,7 @@ int main ()
             }
             
             zframe_t *sender = zmsg_pop(msg);
-!            zframe_t *empty  = zmsg_pop(msg);
+            zframe_t *empty  = zmsg_pop(msg);
             zframe_t *header = zmsg_pop(msg);
 
             if (zframe_streq(header, MDPC_CLIENT)) {
@@ -346,7 +365,7 @@ int main ()
         }
         //  Disconnect and delete any expired workers
         //  Send heartbeats to idle workers if needed
-! // Зачем посылать им, пусть они нам присылают
+ // Зачем посылать им, пусть они нам присылают
         if (zclock_time() > self->heartbeat_at) {
             s_broker_purge(self);
             worker_t *worker = (worker_t *) zlist_first(self->waiting);

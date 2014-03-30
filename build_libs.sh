@@ -1,11 +1,15 @@
 #!/bin/bash
 
+
 if [ ! -d build ] ; then
 	mkdir build
 fi
 
 cd build
 MYPWD=${PWD}
+
+export CFLAGS=-I${MYPWD}/include
+export LDFLAGS=-L${MYPWD}/lib
 
 function get_from_git()
 {
@@ -56,14 +60,13 @@ function compile()
 
 echo "------------------ GIT ------------------";
 
-get_from_git zeromq
-get_from_git libsodium
-get_from_git czmq
+if [ -z ${1} ] ; then #OffLine mode
+	get_from_git zeromq
+	get_from_git libsodium
+	get_from_git czmq
+fi
 
 echo "------------------ Compile ------------------";
-
-export CFLAGS=-I${MYPWD}/include
-export LDFLAGS=-L${MYPWD}/lib
 
 compile zeromq
 compile libsodium
