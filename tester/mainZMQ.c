@@ -16,8 +16,7 @@
 #include <sys/resource.h>
 
 #include <glib.h>
-#include <nanomsg/nn.h>
-#include <nanomsg/reqrep.h>
+#include <zmq.h>
 
 
 #define CYCLES 1
@@ -98,20 +97,49 @@ void* run_test(void  *threadid)
 
         GHashTable* sockets = g_hash_table_new(g_direct_hash, g_direct_equal);
 
-	struct nn_polld pfd[MAX_CONNECTIONS];
+        int epfd = epoll_create(MAX_CONNECTIONS);
+        if (epfd < 1) {
+            printf("can't create epoll\n");
+            if (sockets) {
+                g_hash_table_destroy(sockets);
+                sockets = NULL;
+            }
+            return NULL;
+        }
+
+        struct epoll_event ev, ev_read, events[MAX_CONNECTIONS];
+        memset(&ev, 0x0, sizeof(struct epoll_event));
+        memset(&ev_read, 0x0, sizeof(struct epoll_event));
+        memset(events, 0x0, sizeof(struct epoll_event) * MAX_CONNECTIONS);
 
         ev.events = EPOLLIN | EPOLLOUT | EPOLLRDHUP;
-
+        ev_read.events = EPOLLIN | EPOLLRDHUP;
 
         //unsigned int sends = 0;
 
-        int requester[MAX_CONNECTIONS] = { 0 };
+        int sd[MAX_CONNECTIONS] = { 0 };
+        void *context[MAX_CONNECTIONS] = { 0 };
+        void *requester[MAX_CONNECTIONS] = { 0 };
 
         for (size_t i = 0; i < MAX_CONNECTIONS; ++i) {
-            requester[i] = nn_socket(AF_SP, NN_REQ);
+            context[i] = zmq_ctx_new ();
+            requester[i] = zmq_socket (context[i], ZMQ_REQ);
+            size_t sd_size = sizeof(int);
+            zmq_getsockopt(requester[i], ZMQ_FD, &sd[i], &sd_size);
 
+            if (sd[i] < 0) {
+                sd[i] = 0;
+                printf("can't create socket #%d\n", (int)i);
+                if (sockets) {
+                    g_hash_table_destroy(sockets);
+                    sockets = NULL;
+                }
+                zmq_close(requester[i]);
+                zmq_ctx_destroy(context[i]);
+                return NULL;
+            }
 
-            nn_connect(requester[i], "tcp://10.2.142.102:12345");
+            zmq_connect(requester[i], "tcp://10.2.142.102:12345");
 
             if (sd[i]) {
                 g_hash_table_insert(sockets, GINT_TO_POINTER(sd[i]), GINT_TO_POINTER(0));
@@ -123,6 +151,7 @@ void* run_test(void  *threadid)
                         sockets = NULL;
                     }
                     zmq_close(requester[i]);
+                    zmq_ctx_destroy(context[i]);
                     return NULL;
                 }
             }
@@ -227,6 +256,7 @@ void* run_test(void  *threadid)
                                 funlockfile(stdout);
                             }
                             zmq_close(requester[num]);
+                            zmq_ctx_destroy(context[num]);
                             close(events[epoll_event].data.fd);
 
                             break;
@@ -254,6 +284,7 @@ void* run_test(void  *threadid)
                 ++sockets_wo_send_counter;
             }
             zmq_close(requester[i]);
+            zmq_ctx_destroy(context[i]);
         }
 
         if (sockets) {
