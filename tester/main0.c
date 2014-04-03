@@ -171,8 +171,12 @@ void* run_test(void  *threadid)
                 funlockfile(stdout);
                 break;
             }
-
-            for (int epoll_event = 0; epoll_event < rv ; ++epoll_event) {
+            
+	    int rv_ch = 0;
+            for (int epoll_event = 0; epoll_event < MAX_CONNECTIONS ; ++epoll_event) {
+		if (rv_ch++ == rv) {
+		  break;
+		}
                 //flockfile(stdout);
                 //printf("#%ld | Debug: got event 0x%04x on fd=%04d | %p\n", tid, events[epoll_event].events, events[epoll_event].data.fd, &events);
                 //funlockfile(stdout);

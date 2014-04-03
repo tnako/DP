@@ -18,15 +18,16 @@
 #include <glib.h>
 #include <nanomsg/nn.h>
 #include <nanomsg/reqrep.h>
+#include <nanomsg/tcp.h>
 
 
 #define CYCLES 1
-#define MAX_THREADS 4096 // x2
-#define MAX_CONNECTIONS 2
-#define MESSAGES 200000
+#define MAX_THREADS 2 // x2
+#define MAX_CONNECTIONS 512
+#define MESSAGES 500
 
 
-#define BUFFER_READ 16
+#define BUFFER_READ 5
 
 #define MES_TEXT "HELLO"
 
@@ -98,38 +99,79 @@ void* run_test(void  *threadid)
 
         GHashTable* sockets = g_hash_table_new(g_direct_hash, g_direct_equal);
 
-	struct nn_polld pfd[MAX_CONNECTIONS];
+        int epfd = epoll_create(MAX_CONNECTIONS);
+        if (epfd < 1) {
+            printf("can't create epoll\n");
+            if (sockets) {
+                g_hash_table_destroy(sockets);
+                sockets = NULL;
+            }
+            return NULL;
+        }
 
-        ev.events = EPOLLIN | EPOLLOUT | EPOLLRDHUP;
+        struct epoll_event ev, ev_read, events[MAX_CONNECTIONS];
+        memset(&ev, 0x0, sizeof(struct epoll_event));
+        memset(&ev_read, 0x0, sizeof(struct epoll_event));
+        memset(events, 0x0, sizeof(struct epoll_event) * MAX_CONNECTIONS);
 
+        ev.events = EPOLLONESHOT | EPOLLOUT | EPOLLRDHUP;
+        ev_read.events = EPOLLIN | EPOLLRDHUP;
 
         //unsigned int sends = 0;
 
+        int sdIN[MAX_CONNECTIONS] = { 0 };
+        int sdOUT[MAX_CONNECTIONS] = { 0 };
         int requester[MAX_CONNECTIONS] = { 0 };
 
-        for (size_t i = 0; i < MAX_CONNECTIONS; ++i) {
+        for (int i = 0; i < MAX_CONNECTIONS; i++) {
             requester[i] = nn_socket(AF_SP, NN_REQ);
+            if(requester[i] < 0) {
+                flockfile(stdout);
+                printf("nn_socket() %s (%d)\n", nn_strerror(nn_errno()), nn_errno());
+                funlockfile(stdout);
+                exit(1);
+            }
+            int val = 1;
+            nn_setsockopt(requester[i], NN_TCP, NN_TCP_NODELAY, &val, sizeof(val));
+            int ret = nn_connect(requester[i], "tcp://10.2.142.102:12345");
+            //int ret = nn_connect(requester[i], "tcp://127.0.0.1:12345");
+            if (ret < 0) {
+                flockfile(stdout);
+                printf("nn_connect() %s (%d)\n", nn_strerror(nn_errno()), nn_errno());
+                funlockfile(stdout);
+            }
+            size_t sd_size = sizeof(int);
+            nn_getsockopt(requester[i], NN_SOL_SOCKET, NN_SNDFD, &sdOUT[i], &sd_size);
+            nn_getsockopt(requester[i], NN_SOL_SOCKET, NN_RCVFD, &sdIN[i], &sd_size);
+            //printf("fd = %d | %d\n", sdOUT[i], sdIN[i]);
 
-
-            nn_connect(requester[i], "tcp://10.2.142.102:12345");
-
-            if (sd[i]) {
-                g_hash_table_insert(sockets, GINT_TO_POINTER(sd[i]), GINT_TO_POINTER(0));
-                ev.data.fd = sd[i];
-                if (epoll_ctl(epfd, EPOLL_CTL_ADD, sd[i], &ev)) {
+            if (requester[i] >= 0) {
+                g_hash_table_insert(sockets, GINT_TO_POINTER(i), GINT_TO_POINTER(0));
+                ev.data.fd = sdOUT[i];
+                if (epoll_ctl(epfd, EPOLL_CTL_ADD, sdOUT[i], &ev)) {
                     printf("can't epoll_ctl\n");
                     if (sockets) {
                         g_hash_table_destroy(sockets);
                         sockets = NULL;
                     }
-                    zmq_close(requester[i]);
+                    nn_close(requester[i]);
+                    return NULL;
+                }
+                ev_read.data.fd = sdIN[i];
+                if (epoll_ctl(epfd, EPOLL_CTL_ADD, sdIN[i], &ev_read)) {
+                    printf("can't epoll_ctl\n");
+                    if (sockets) {
+                        g_hash_table_destroy(sockets);
+                        sockets = NULL;
+                    }
+                    nn_close(requester[i]);
                     return NULL;
                 }
             }
         }
 
         while (1) {
-            int rv = epoll_wait(epfd, events, MAX_CONNECTIONS, 300);
+            int rv = epoll_wait(epfd, events, MAX_CONNECTIONS, 20000);
 
             if (rv == 0) {
                 break;
@@ -140,69 +182,61 @@ void* run_test(void  *threadid)
                 break;
             }
 
-            for (int epoll_event = 0; epoll_event < rv ; ++epoll_event) {
-
-                int num = -1;
-                for (size_t i = 0; i < MAX_CONNECTIONS; ++i) {
-                    if (sd[i] == events[epoll_event].data.fd) {
-                        num = i;
-                        break;
-                    }
+            int rv_ch = 0;
+            for (int epoll_event = 0; epoll_event < MAX_CONNECTIONS ; epoll_event++) {
+                if (rv_ch++ == rv) {
+                    break;
                 }
-                if (num == -1) {
-                    continue;
-                }
-
-                int so_error;
-                socklen_t len = sizeof so_error;
-
-                getsockopt(events[epoll_event].data.fd, SOL_SOCKET, SO_ERROR, &so_error, &len);
-
-                if (so_error != 0) {
-                    if (epoll_ctl(epfd, EPOLL_CTL_DEL, events[epoll_event].data.fd, NULL)) {
-                        flockfile(stdout);
-                        printf("#%ld | Couldn't epoll_ctl1, fd=%d, error: %s (%d)\n", tid, events[epoll_event].data.fd, strerror(errno), errno);
-                        funlockfile(stdout);
-                    }
-                    ++discon_counter;
-                    continue;
-                }
-
                 if (events[epoll_event].events & EPOLLIN) {
-
-                    unsigned int     zmq_events;
-                    size_t           zmq_events_size  = sizeof(zmq_events);
-
-                    zmq_getsockopt (requester[num], ZMQ_EVENTS, &zmq_events, &zmq_events_size);
-
-                    if (zmq_events & ZMQ_POLLIN) {
-                        ++reads_counter;
-
-                        char buffer[BUFFER_READ];
-                        if (zmq_recv(requester[num], buffer, 5, ZMQ_NOBLOCK) < 0) {
-                            flockfile(stdout);
-                            printf("#%ld | can't recv on socket #%d %s (%d)\n", tid, events[epoll_event].data.fd, zmq_strerror(zmq_errno()), zmq_errno());
-                            funlockfile(stdout);
+                    int num = -1;
+                    for (int i = 0; i < MAX_CONNECTIONS; i++) {
+                        if (events[epoll_event].data.fd == sdIN[i]) {
+                            num = i;
+                            break;
                         }
+                    }
+                    if (num == -1) {
+                        //nn_term();
+                        flockfile(stdout);
+                        printf("IN | Can`t find socket\n");
+                        funlockfile(stdout);
+                        exit(1);
+                    }
 
-                        if (GPOINTER_TO_INT(g_hash_table_lookup(sockets, GINT_TO_POINTER(events[epoll_event].data.fd))) < MESSAGES) {
-                            ev.data.fd = events[epoll_event].data.fd;
-                            if (epoll_ctl(epfd, EPOLL_CTL_MOD, events[epoll_event].data.fd, &ev)) {
-                                flockfile(stdout);
-                                printf("#%ld | Couldn't epoll_ctl3.1, fd=%d, error: %s (%d)\n", tid, events[epoll_event].data.fd, strerror(errno), errno);
-                                funlockfile(stdout);
+                    char buffer[BUFFER_READ];
+                    if (nn_recv(requester[num], buffer, 5, NN_DONTWAIT) < 0) {
+                        if (nn_errno() == EAGAIN || nn_errno() == EFSM) {
+                            continue;
+                        }
+                        flockfile(stdout);
+                        printf("#%ld | can't recv on socket #%d %s (%d)\n", tid, requester[num], nn_strerror(nn_errno()), nn_errno());
+                        funlockfile(stdout);
+                        exit(1);
+                    } else {
+                        int a = GPOINTER_TO_INT(g_hash_table_lookup(sockets, GINT_TO_POINTER(num)));
+                        if (a < MESSAGES) {
+                            ev.data.fd = sdOUT[num];
+                            if (epoll_ctl(epfd, EPOLL_CTL_MOD, sdOUT[num], &ev)) {
+                                printf("can't epoll_ctl\n");
+                                if (sockets) {
+                                    g_hash_table_destroy(sockets);
+                                    sockets = NULL;
+                                }
+                                nn_close(requester[num]);
+                                return NULL;
                             }
                         }
+                        ++reads_counter;
+                        //printf("recv %d\n", events[epoll_event].data.fd);
                     }
                 }
                 if (events[epoll_event].events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
                     ++discon_counter;
                     flockfile(stdout);
-                    //printf("#%ld | Debug: Close conn: %d - 0x%04x\n", tid, events[epoll_event].data.fd, events[epoll_event].events);
+                    printf("#%ld | Debug: Close conn: %d - 0x%04x\n", tid, events[epoll_event].data.fd, events[epoll_event].events);
                     funlockfile(stdout);
 
-                    ev.data.fd = events[epoll_event].data.fd;
-                    if (epoll_ctl(epfd, EPOLL_CTL_DEL, events[epoll_event].data.fd, &ev)) {
+                    if (epoll_ctl(epfd, EPOLL_CTL_DEL, events[epoll_event].data.fd, NULL)) {
                         flockfile(stdout);
                         printf("#%ld | Couldn't epoll_ctl2, fd=%d, error: %s (%d)\n", tid, events[epoll_event].data.fd, strerror(errno), errno);
                         funlockfile(stdout);
@@ -211,49 +245,58 @@ void* run_test(void  *threadid)
                     continue;
                 }
                 if (events[epoll_event].events & EPOLLOUT) {
-                    unsigned int     zmq_events;
-                    size_t           zmq_events_size  = sizeof(zmq_events);
-                    zmq_getsockopt (requester[num], ZMQ_EVENTS, &zmq_events, &zmq_events_size);
-                    if (zmq_events & ZMQ_POLLOUT) {
-                        if (zmq_send(requester[num], "Hello", 5, ZMQ_NOBLOCK) < 0) {
-                            flockfile(stdout);
-                            printf("#%ld | can't send on socket #%d %s (%d)\n", tid, events[epoll_event].data.fd, zmq_strerror(zmq_errno()), zmq_errno());
-                            funlockfile(stdout);
 
-                            ev.data.fd = events[epoll_event].data.fd;
-                            if (epoll_ctl(epfd, EPOLL_CTL_DEL, events[epoll_event].data.fd, &ev)) {
-                                flockfile(stdout);
-                                printf("#%ld | Couldn't epoll_ctl4, fd=%d, error: %s (%d)\n", tid, events[epoll_event].data.fd, strerror(errno), errno);
-                                funlockfile(stdout);
-                            }
-                            zmq_close(requester[num]);
-                            close(events[epoll_event].data.fd);
-
+                    int num = -1;
+                    for (int i = 0; i < MAX_CONNECTIONS; i++) {
+                        if (events[epoll_event].data.fd == sdOUT[i]) {
+                            num = i;
                             break;
-                        } else {
-                            int a = GPOINTER_TO_INT(g_hash_table_lookup(sockets, GINT_TO_POINTER(events[epoll_event].data.fd)));
-                            g_hash_table_insert(sockets, GINT_TO_POINTER(events[epoll_event].data.fd), GINT_TO_POINTER(++a));
-                            update(1);
-                            ++sends_counter;
+                        }
+                    }
+                    if (num == -1) {
+                        //nn_term();
+                        flockfile(stdout);
+                        printf("OUT | Can`t find socket\n");
+                        funlockfile(stdout);
+                        exit(1);
+                    }
+                    if (nn_send(requester[num], "Hello", 5, NN_DONTWAIT) < 0) {
+                        if (nn_errno() == EAGAIN) {
+                            continue;
+                        }
+                        ++discon_counter;
+                        flockfile(stdout);
+                        printf("#%ld | can't send on socket #%d %s (%d)\n", tid, num, nn_strerror(nn_errno()), nn_errno());
+                        funlockfile(stdout);
+
+                        if (epoll_ctl(epfd, EPOLL_CTL_DEL, events[epoll_event].data.fd, NULL)) {
+                            flockfile(stdout);
+                            printf("#%ld | Couldn't epoll_ctl4, fd=%d, error: %s (%d)\n", tid, events[epoll_event].data.fd, strerror(errno), errno);
+                            funlockfile(stdout);
+                            exit(1);
                         }
 
-                        ev_read.data.fd = events[epoll_event].data.fd;
-                        if (epoll_ctl(epfd, EPOLL_CTL_MOD, events[epoll_event].data.fd, &ev_read)) {
-                            flockfile(stdout);
-                            printf("#%ld | Couldn't epoll_ctl3, fd=%d, error: %s (%d)\n", tid, events[epoll_event].data.fd, strerror(errno), errno);
-                            funlockfile(stdout);
-                        }
+                        nn_close(requester[num]);
+
+                        break;
+                    } else {
+                        //printf("send %d\n", events[epoll_event].data.fd);
+                        int a = GPOINTER_TO_INT(g_hash_table_lookup(sockets, GINT_TO_POINTER(num)));
+                        g_hash_table_insert(sockets, GINT_TO_POINTER(num), GINT_TO_POINTER(++a));
+
+                        update(1);
+                        ++sends_counter;
                     }
                 }
             }
             fflush(stdout);
         }
 
-        for (size_t i = 0; i < MAX_CONNECTIONS; ++i) {
-            if (GPOINTER_TO_INT(g_hash_table_lookup(sockets, GINT_TO_POINTER(sd[i]))) == 0) {
+        for (int i = 0; i < MAX_CONNECTIONS; i++) {
+            if (GPOINTER_TO_INT(g_hash_table_lookup(sockets, GINT_TO_POINTER(i))) == 0) {
                 ++sockets_wo_send_counter;
             }
-            zmq_close(requester[i]);
+            nn_close(requester[i]);
         }
 
         if (sockets) {
