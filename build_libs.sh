@@ -23,6 +23,10 @@ function get_from_git()
 			;;
 		libsodium)  gitpath="https://github.com/jedisct1/libsodium.git"
 			;;
+		nanomsg)  gitpath="https://github.com/nanomsg/nanomsg.git"
+			;;
+		msgpack)  gitpath="https://github.com/msgpack/msgpack-c.git"
+			;;
 		*) echo "Not Valid path"
 			exit 1
 			;;
@@ -46,7 +50,7 @@ function compile()
 {
 	echo "--- "${1}" ---";
 	cd ${1} && \
-	./autogen.sh && \
+	./autogen.sh || ./bootstrap && \
 	./configure --prefix=${MYPWD} && \
 	make -j5 && \
 	make install && \
@@ -61,16 +65,14 @@ function compile()
 echo "------------------ GIT ------------------";
 
 if [ -z ${1} ] ; then #OffLine mode
-	get_from_git zeromq
-	get_from_git libsodium
-	get_from_git czmq
+	get_from_git nanomsg
+	get_from_git msgpack
 fi
 
 echo "------------------ Compile ------------------";
 
-compile zeromq
-compile libsodium
-compile czmq
+compile nanomsg
+compile msgpack
 
 cd ..
 
