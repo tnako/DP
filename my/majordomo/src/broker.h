@@ -11,4 +11,7 @@ typedef struct {
     const char* transport;
 } md_app_params;
 
+
+void broker_main_loop();
+
 #endif
