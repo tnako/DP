@@ -87,6 +87,8 @@ int main(int argc, char** argv)
     //todure_run(daemon, error_log_file, pid_file, transport);
     papp_run(0, NULL, broker_main_loop);
 
+    plog_dbg("Bye bye");
+
     return EXIT_SUCCESS;
 }
 
