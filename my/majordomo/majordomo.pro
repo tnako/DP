@@ -32,6 +32,10 @@ CONFIG(debug, debug|release) {
     LIBS += -lpurebled
 }
 
+
+LIBS += -lnanomsg -pthread -lanl
+
+
 QMAKE_LINK = gcc
 QMAKE_CFLAGS += -std=gnu11 -Wextra -Werror -DMODULE_NAME=\\\"\$\$\(p=\"$@\"; echo \$\${p%.*}\)\\\"
 
