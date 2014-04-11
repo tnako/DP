@@ -33,13 +33,13 @@ CONFIG(debug, debug|release) {
 }
 
 
-LIBS += -lnanomsg -pthread -lanl
+LIBS += -lzmq -lczmq -lsodium -pthread -lstdc++
 
 
 QMAKE_LINK = gcc
 QMAKE_CFLAGS += -std=gnu11 -Wextra -Werror -DMODULE_NAME=\\\"\$\$\(p=\"$@\"; echo \$\${p%.*}\)\\\"
 
-QMAKE_CFLAGS_RELEASE += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector -march=native -mtune=native
+QMAKE_CFLAGS_RELEASE += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector -march=native -mtune=native -flto
 
 QMAKE_LFLAGS += -Wl,--as-needed
 
