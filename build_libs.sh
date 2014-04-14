@@ -67,12 +67,18 @@ echo "------------------ GIT ------------------";
 if [ -z ${1} ] ; then #OffLine mode
 	get_from_git nanomsg
 	get_from_git msgpack
+	get_from_git libsodium
+	get_from_git zeromq
+	get_from_git czmq
 fi
 
 echo "------------------ Compile ------------------";
 
 compile nanomsg
 compile msgpack
-
+compile libsodium
+compile zeromq
+compile czmq
+	
 cd ..
 

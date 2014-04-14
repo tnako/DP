@@ -12,7 +12,7 @@ pobj_loop *looper;
 pnet_broker *broker;
 bool broker_can_send = false;
 
-static void func_SIGINT()
+static void func_SIGUSR1()
 {
     plog_info("Got SIGINT");
     looper->broken = 1;
@@ -23,25 +23,21 @@ static void func_SIGQUIT()
     plog_info("Got SIGQUIT");
 }
 
-static void parse_client_msg()
-{
-    plog_info("Got client msg");
-}
-
-static void parse_worker_msg()
-{
-    plog_info("Got worker msg");
-}
 
 static void func_net_event(pobj_loop* UNUSED(loop), const puint32 epoll_events)
 {
     if (epoll_events & (POBJIN | POBJOUT)) {
         pint32 net_event = pnet_broker_check_event(broker);
         if (net_event & POBJIN) {
+
+            while (pnet_broker_readmsg(broker)) {
+                //plog_info("Data IN!");
+            }
             //aaa += 10;
         }
         if (net_event & POBJOUT) {
             broker_can_send = true;
+            //plog_info("Data can OUT!");
             // ToDo: check query
         }
     } else {
@@ -53,7 +49,7 @@ void broker_main_loop()
 {
     looper = pobj_create(128, false);
 
-    if (!pobj_signals_add(looper, SIGINT, func_SIGINT) || (!pobj_signals_add(looper, SIGQUIT, func_SIGQUIT))) {
+    if (!pobj_signals_add(looper, SIGUSR1, func_SIGUSR1) || (!pobj_signals_add(looper, SIGQUIT, func_SIGQUIT))) {
         plog_error("signal error");
     }
 

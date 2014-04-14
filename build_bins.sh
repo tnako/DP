@@ -15,3 +15,5 @@ echo "LD_LIBRARY_PATH=\""${MYPWD}/lib/"\" ./build/bin/server"
 gcc -std=gnu11 -O2 ${CFLAGS} ${LDFLAGS} -lnanomsg -lmsgpack ../my/client.c -pthread -lglib-2.0 -I/usr/include/glib-2.0/ -I/usr/lib64/glib-2.0/include/ -o bin/client && strip -s bin/client
 echo "LD_LIBRARY_PATH=\""${MYPWD}/lib/"\" ./build/bin/client"
 
+gcc -std=gnu11 -O2 ${CFLAGS} ${LDFLAGS} -lzmq -lczmq ../my/client2.c -pthread -lglib-2.0 -I/usr/include/glib-2.0/ -I/usr/lib64/glib-2.0/include/ -o bin/client2 && strip -s bin/client2
+echo "LD_LIBRARY_PATH=\""${MYPWD}/lib/"\" ./build/bin/client2"
