@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#define SIZE 400000
+#define SIZE 1
 
 int pid;
 int gcper;
@@ -25,7 +25,7 @@ static void *sender_task (void *args)
 	zmsg_addstr(request, "echo2");
 	zmsg_addstr(request, "echo3");
 	zmsg_addstr(request, "Hello world");
-	zmsg_pushstr(request, "get_users");
+	zmsg_pushstr(request, "echo");
 	zmsg_pushstr(request, "PC01");
 	zmsg_pushstr(request, "");
 	//zmsg_dump (request);
@@ -37,6 +37,7 @@ static void *sender_task (void *args)
         
         
       zmsg_t *msg = zmsg_recv(requester);
+      zmsg_dump(msg);
       zmsg_destroy(&msg);
 
         
@@ -78,7 +79,7 @@ int main (void)
 
     printf ("threads | min | avg | max | mrpst\n");
     int64_t start = zclock_time ();
-    for (test = 0; test < 7; ++test) {
+    for (test = 0; test < 1; ++test) {
       pid = 1;
       gcper = 0;
       max_cper = 0;

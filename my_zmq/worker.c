@@ -2,7 +2,7 @@
 
 int main (int argc, char *argv [])
 {
-    mdwrk_t *session = mdwrk_new("tcp://localhost:5555", "echo", 1);
+    mdwrk_t *session = mdwrk_new("tcp://localhost:12345", "echo", 1);
 
     zmsg_t *reply = NULL;
     while (true) {
