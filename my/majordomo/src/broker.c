@@ -31,7 +31,7 @@ static void func_net_event(pobj_loop* UNUSED(loop), const puint32 epoll_events)
         if (net_event & POBJIN) {
 
             while (pnet_broker_readmsg(broker)) {
-                plog_info("Data IN!");
+                //plog_info("Data IN!");
             }
             //aaa += 10;
         }
@@ -47,7 +47,6 @@ static void func_net_event(pobj_loop* UNUSED(loop), const puint32 epoll_events)
 
 static void timer_check_workers()
 {
-    plog_dbg("timer_check_workers()");
     pnet_broker_purge_workers(broker);
 }
 
@@ -55,7 +54,7 @@ void broker_main_loop()
 {
     looper = pobj_create(128, false);
 
-    if (!pobj_signals_add(looper, SIGUSR1, func_SIGUSR1) || (!pobj_signals_add(looper, SIGQUIT, func_SIGQUIT))) {
+    if (!pobj_signals_add(looper, SIGINT, func_SIGUSR1) || (!pobj_signals_add(looper, SIGQUIT, func_SIGQUIT))) {
         plog_error("signal error");
     }
 
@@ -70,7 +69,7 @@ void broker_main_loop()
     pnet_broker_register(broker, looper, func_net_event);
 
 
-    struct timespec time = { .tv_sec = 600, .tv_nsec = 0 };
+    struct timespec time = { .tv_sec = 15, .tv_nsec = 0 };
     pobj_internal_timer_start(looper, 1, time, timer_check_workers);
 
 
