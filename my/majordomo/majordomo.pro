@@ -6,6 +6,7 @@ CONFIG -= qt
 VPATH += ./src
 
 INCLUDEPATH += ../../../pureble/include
+INCLUDEPATH += ../../../pureble/third_party/build/include/mariadb
 QMAKE_LIBDIR += ../../../pureble/bin
 QMAKE_RPATHDIR += ../../../pureble/bin
 
