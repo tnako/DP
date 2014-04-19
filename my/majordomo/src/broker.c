@@ -1,60 +1,34 @@
 #include "broker.h"
 
-#include <sys/timerfd.h>
-#include <sys/signalfd.h>
-#include <signal.h>
-
-#include <unistd.h>
-
 
 pobj_loop *looper;
-
 pnet_broker *broker;
-//bool broker_can_send = false;
 
-static void func_SIGUSR1()
+
+static void func_signals()
 {
-    plog_info("Got SIGINT");
+    plog_info("Got signal");
     looper->broken = 1;
 }
 
-static void func_SIGQUIT()
+static void func_net_event()
 {
-    plog_info("Got SIGQUIT");
-}
-
-
-static void func_net_event(pobj_loop* UNUSED(loop), const puint32 epoll_events)
-{
-    if (epoll_events & (POBJIN | POBJOUT)) {
-        pint32 net_event = pnet_broker_check_event(broker);
-        if (net_event & POBJIN) {
-
-            while (pnet_broker_readmsg(broker)) {
-                //plog_info("Data IN!");
-            }
-            //aaa += 10;
-        }
-//        if (net_event & POBJOUT) {
-//            broker_can_send = true;
-//            plog_info("Data can OUT!");
-//            // ToDo: check query
-//        }
-    } else {
-        plog_error("Net error!");
+    while (pnet_broker_readmsg(broker)) {
+        //plog_info("Data IN!");
     }
 }
 
 static void timer_check_workers()
 {
-    pnet_broker_purge_workers(broker);
+    //pnet_broker_purge_workers(broker);
+    plog_dbg("timer");
 }
 
 void broker_main_loop()
 {
     looper = pobj_create(128, false);
 
-    if (!pobj_signals_add(looper, SIGINT, func_SIGUSR1) || (!pobj_signals_add(looper, SIGQUIT, func_SIGQUIT))) {
+    if (!pobj_signals_add(looper, SIGINT, func_signals) || (!pobj_signals_add(looper, SIGQUIT, func_signals))) {
         plog_error("signal error");
     }
 
@@ -69,7 +43,7 @@ void broker_main_loop()
     pnet_broker_register(broker, looper, func_net_event);
 
 
-    struct timespec time = { .tv_sec = 15, .tv_nsec = 0 };
+    struct timespec time = { .tv_sec = 60, .tv_nsec = 0 };
     pobj_internal_timer_start(looper, 1, time, timer_check_workers);
 
 
