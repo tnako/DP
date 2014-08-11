@@ -1,20 +1,21 @@
 FORMAT: 1A
-HOST: http://api.gtdtodoapi.com
+HOST: http://api.bingo.boom
 
-# GTD TODO API
+# BingoBoom TODO API
 This is an example API, written as a companion to a blog post at SendGrid.com
 
-## Folder [/folder{id}]
+## Кошелёк [/wallet{id}]
 A single Folder object, it represents a single folder.
 
 Required attributes: 
 
-- `id`          Automatically assigned
+- `wallet_id`          Automatically assigned
 - `name`
 - `description`
 
 Optional attributes:
 - `parent`      ID of folder that is the parent. Set to 0 if no parent
+
 - `meta`        A catch-all attribute to add custom features
 
 + Parameters
@@ -36,7 +37,7 @@ Optional attributes:
 
 + Response 200 (application/json)
 
-    [Folder][]
+        [Folder][{status}]
     
 + Response 404 (application/json)
 
@@ -54,7 +55,7 @@ Optional attributes:
 
 + Response 200
     
-    [Folder][]
+        [Folder][{status}]
 
 + Response 404
 
@@ -88,7 +89,7 @@ Optional attributes:
 
 + Response 201
 
-    [Folder][]
+        [Folder][{status}]
     
 + Response 400
 
