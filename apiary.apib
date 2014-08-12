@@ -5,10 +5,26 @@ HOST: http://api.bingo.boom
 Пример межпартнёрского API
 
  
-## Поиск игрока по номеру телефона [/search/phone/]
+## Поиск игрока [/search]
 Ресурс возвращающий номер кошелька, баланс и самого игрока
 
-### Поиск по телефону [POST]
++ Model (application/hal+json)
+
+    + Body
+
+            {
+                "active": 1,
+                "nickname": "Ivan",
+                "balance": "0.00",
+                "phone": "79060060999",
+                "wallet_id": 654644,
+                "surname": "Иванов",
+                "name": "Иван",
+                "patronymic": "Иванович",
+                "birthday": "1980-08-01"
+            }
+            
+### Поиск [POST]
 Возвращает игрока
 
 + Request (application/json)
@@ -19,18 +35,12 @@ HOST: http://api.bingo.boom
                     "login": "megaPeople",
                     "pass": "7c94566cd9aba3680d19e1b000a948ffbca075fd320956b23b6a1f3a0d28ff1f"
                 },
-                "scopes": ["gist_write"]
+                "phone": "79060060999"
             }
 
-+ Response 200 (application/hal+json)
-    + Body
++ Response 200
 
-            {
-                "gambler": {
-                    "self": { "href": "/" },
-                    "gists": { "href": "/gists?{since}", "templated": true }
-                }
-            }
+    [Поиск игрока][]
 
 
 # Folder Collection [/folder]
