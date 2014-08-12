@@ -4,7 +4,6 @@ HOST: http://api.bingo.boom
 # BingoBoom API
 Пример межпартнёрского API
 
- 
 ## Поиск игрока [/search]
 Ресурс возвращающий номер кошелька, баланс и самого игрока
 
@@ -13,7 +12,6 @@ HOST: http://api.bingo.boom
     + Body
 
             {
-                "active": 1,
                 "nickname": "Ivan",
                 "balance": "0.00",
                 "phone": "79060060999",
@@ -28,6 +26,7 @@ HOST: http://api.bingo.boom
 Возвращает игрока
 
 + Request (application/json)
+
     + Body
 
             {
@@ -42,37 +41,79 @@ HOST: http://api.bingo.boom
 
     [Поиск игрока][]
 
++ Response 401
 
-# Folder Collection [/folder]
-Get all of the Folders.
+    + Body
+
+            {
+                "error": "Invalid login or password"
+            }
+
++ Response 403
+
+    + Body
+
+            {
+                "error": "Not active user"
+            }
+
++ Response 404
+
+    + Body
+
+            {
+                "error": "No user in DB"
+            }
+
+
+## Транзакции [/transactions]
+Ресурс возвращающий все транзакции по переводу денег
 
 + Model (application/hal+json)
 
     + Body
 
             {
-                "folders": [
-                    {
-                        "wallet_id": 1,
-                        "name": "Health",
-                        "description": "This represents projects that are related to health"
-                        "parent": 0,
-                        "meta": "NULL"
-                    },
-                    {
-                        "id": 1,
-                        "name": "Diet",
-                        "description": "A collection of projects related to Diet",
-                        "parent": 1,
-                        "meta": "NULL"
-                    }
+                "transactions":[{
+                    "pi_id": 1,
+                    "wallet_id": 654644,
+                    "amount": "10.00",
+                    "destination": "out",
+                    "status": "pending",
+                    "created_at": "2014-08-01T23:00:49-07:00"
+                    }, {
+                    "pi_id": 10,
+                    "wallet_id": 654645,
+                    "amount": "11.00",
+                    "destination": "in",
+                    "status": true",
+                    "created_at": "2013-08-01T23:00:49-07:00"}
                 ]
             }
+            
+### Поиск [POST]
+Возвращает список транзакций
 
++ Request (application/json)
+    + Body
 
-
-## List all Folders [GET]
+            {
+                "auth": {
+                    "login": "megaPeople",
+                    "pass": "7c94566cd9aba3680d19e1b000a948ffbca075fd320956b23b6a1f3a0d28ff1f"
+                }
+            }
 
 + Response 200
 
-    [Folder Collection][]
+    [Транзакции][]
+    
++ Response 401
+
+    + Body
+
+            {
+                "error": "Invalid login or password"
+            }
+
+
