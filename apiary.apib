@@ -74,6 +74,14 @@ HOST: http://api.bingo.boom
 
     [Поиск игрока][]
 
++ Response 400
+
+    + Body
+
+            {
+                "error": "Out of service"
+            }
+    
 + Response 401
 
     + Body
@@ -159,6 +167,14 @@ HOST: http://api.bingo.boom
 
     [Транзакции][]
     
++ Response 400
+
+    + Body
+
+            {
+                "error": "Out of service"
+            }
+    
 + Response 401
 
     + Body
@@ -218,6 +234,14 @@ HOST: http://api.bingo.boom
 + Response 200
 
     [Отправка денег партнёру][]
+    
++ Response 400
+
+    + Body
+
+            {
+                "error": "Out of service"
+            }
     
 + Response 401
 
@@ -287,6 +311,14 @@ HOST: http://api.bingo.boom
 + Response 200
 
     [Снятие денег из системы партнёра][]
+    
++ Response 400
+
+    + Body
+
+            {
+                "error": "Out of service"
+            }
     
 + Response 401
 
@@ -361,6 +393,88 @@ HOST: http://api.bingo.boom
 + Response 200
 
     [Отмена операции][]
+    
++ Response 400
+
+    + Body
+
+            {
+                "error": "Out of service"
+            }
+    
++ Response 401
+
+    + Body
+
+            {
+                "error": "Invalid login or password"
+            }
+
++ Response 403
+
+    + Body
+
+            {
+                "error": "Not valid pt_id"
+            }
+
+## Завершение операции [/transactions/complete{pt_id}]
+Окончание транзакции
+
++ Parameters
+
+    + pt_id (numeric) ... Уникальный номер транзакции
+
++ Model (application/json)
+
+    + Body
+
+            {
+                "pt_id": 1,
+                "wallet_id": 654644,
+                "amount": "10.00",
+                "destination": "request",
+                "status": "complete",
+                "created_at": "2014-08-01T23:00:49-07:00"
+            }
+            
+### Сохранение [POST]
+Сохраняет транзакцию
+
+Ответ содержит объект со следующими параметрами:
+
+- `pt_id` - уникальный номер транзакции
+- `wallet_id` - уникальный номер кошелька
+- `amount` - сумма денег для перевода
+- `destination` - направление перевода
+- `status` - текущее состояние перевода
+- `created_at` - дата и время создания
+
+
+---
+
++ Request (application/json)
+    + Body
+
+            {
+                "auth": {
+                    "login": "megaPeople",
+                    "pass": "7c94566cd9aba3680d19e1b000a948ffbca075fd320956b23b6a1f3a0d28ff1f"
+                },
+                "pt_id": 1234
+            }
+
++ Response 200
+
+    [Завершение операции][]
+    
++ Response 400
+
+    + Body
+
+            {
+                "error": "Out of service"
+            }
     
 + Response 401
 
