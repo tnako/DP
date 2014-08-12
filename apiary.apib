@@ -14,7 +14,14 @@ HOST: http://api.bingo.boom
 ## Поиск игрока [/search{login,pass,phone}]
 Ресурс возвращающий номер кошелька, баланс и самого игрока
 
-+ Model (application/hal+json)
++ Parameters
+
+    + login (string) ... Уникальный идентификатор партнёра
+    + pass (string) ... SHA2 256 хеш пароля партнёра
+    + phone (string) ... Номер телефона для поиска
+
+
++ Model (application/json)
 
     + Body
 
@@ -26,17 +33,27 @@ HOST: http://api.bingo.boom
                 "surname": "Иванов",
                 "name": "Иван",
                 "patronymic": "Иванович",
-                "birthday": "1980-08-01"
+                "birthday": "1980-08-01",
+                "document": "21",
+                "docNumber": "1234567890"
             }
             
 ### Поиск [POST]
-Возвращает игрока
+Возвращает игрока и его уникальный номер кошелька
 
-+ Parameters
+Ответ содержит следующии параметры:
 
-    + login (string) ... Уникальный идентификатор партнёра
-    + pass (string) ... SHA2 256 хеш пароля партнёра
-    + phone (string) ... Номер телефона для поиска
+- `nickname` - псевдоним игрока
+- `balance` - сумма денег на балансе
+- `phone` - номер телефон
+- `wallet_id` - уникальный номер кошелька
+- `surname` - фамилия
+- `name` - имя
+- `patronymic` - отчество
+- `birthday` - день рождения
+- `document` - тип документа
+- `docNumber` - серия и номер документа
+
 
 + Request (application/json)
 
@@ -79,10 +96,14 @@ HOST: http://api.bingo.boom
             }
 
 
-## Транзакции [/transactions]
+## Транзакции [/transactions{limit}]
 Ресурс возвращающий все транзакции по переводу денег
 
-+ Model (application/hal+json)
++ Parameters
+
+    + limit (optional, numeric) ... Количество транзакций за запрос. 0 - неограничено
+
++ Model (application/json)
 
     + Body
 
@@ -133,7 +154,7 @@ HOST: http://api.bingo.boom
 ## Отправка денег партнёру [/transactions/send_money]
 Перевод на игрока партнёра N суммы денег
 
-+ Model (application/hal+json)
++ Model (application/json)
 
     + Body
 
