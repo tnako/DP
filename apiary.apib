@@ -55,6 +55,9 @@ HOST: http://api.bingo.boom
 - `docNumber` - серия и номер документа
 
 
+---
+
+
 + Request (application/json)
 
     + Body
@@ -109,14 +112,14 @@ HOST: http://api.bingo.boom
 
             {
                 "transactions":[{
-                    "pi_id": 1,
+                    "pt_id": 1,
                     "wallet_id": 654644,
                     "amount": "10.00",
                     "destination": "send",
                     "status": "pending",
                     "created_at": "2014-08-01T23:00:49-07:00"
                     }, {
-                    "pi_id": 10,
+                    "pt_id": 10,
                     "wallet_id": 654645,
                     "amount": "11.00",
                     "destination": "request",
@@ -125,8 +128,21 @@ HOST: http://api.bingo.boom
                 ]
             }
             
-### Получение списка [POST]
+### Получение списка транзакций [POST]
 Возвращает список транзакций
+
+Ответ содержит массив объектов со следующими параметрами:
+
+- `pt_id` - уникальный номер транзакции
+- `wallet_id` - уникальный номер кошелька
+- `amount` - сумма денег для перевода
+- `destination` - направление перевода (`send`|`request`)
+- `status` - текущее состояние перевода (`pending`|`complete`|`canceled`)
+- `created_at` - дата и время создания
+
+
+---
+
 
 + Request (application/json)
     + Body
@@ -151,8 +167,13 @@ HOST: http://api.bingo.boom
                 "error": "Invalid login or password"
             }
 
-## Отправка денег партнёру [/transactions/send_money]
+## Отправка денег партнёру [/transactions/send_money{wallet_id,amount}]
 Перевод на игрока партнёра N суммы денег
+
++ Parameters
+
+    + wallet_id (numeric) ... Уникальный номер кошелька
+    + amount (numeric) ... Сумма денег для перевода
 
 + Model (application/json)
 
@@ -170,6 +191,18 @@ HOST: http://api.bingo.boom
 ### Получение списка [POST]
 Возвращает список транзакций
 
+Ответ содержит объект со следующими параметрами:
+
+- `pt_id` - уникальный номер транзакции
+- `wallet_id` - уникальный номер кошелька
+- `amount` - сумма денег для перевода
+- `destination` - направление перевода
+- `status` - текущее состояние перевода
+- `created_at` - дата и время создания
+
+
+---
+
 + Request (application/json)
     + Body
 
@@ -177,12 +210,14 @@ HOST: http://api.bingo.boom
                 "auth": {
                     "login": "megaPeople",
                     "pass": "7c94566cd9aba3680d19e1b000a948ffbca075fd320956b23b6a1f3a0d28ff1f"
-                }
+                },
+                "wallet_id": 1234,
+                "amount": "15.00"
             }
 
 + Response 200
 
-    [Транзакции][]
+    [Отправка денег партнёру][]
     
 + Response 401
 
@@ -190,6 +225,22 @@ HOST: http://api.bingo.boom
 
             {
                 "error": "Invalid login or password"
+            }
+    
++ Response 402
+
+    + Body
+
+            {
+                "error": "Not enough money"
+            }
+    
++ Response 403
+
+    + Body
+
+            {
+                "error": "Not valid wallet_id"
             }
 
 
