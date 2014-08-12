@@ -227,14 +227,6 @@ HOST: http://api.bingo.boom
                 "error": "Invalid login or password"
             }
     
-+ Response 402
-
-    + Body
-
-            {
-                "error": "Not enough money"
-            }
-    
 + Response 403
 
     + Body
@@ -265,7 +257,7 @@ HOST: http://api.bingo.boom
                 "created_at": "2014-08-01T23:00:49-07:00"
             }
             
-### Отправка [POST]
+### Возврат [POST]
 Возвращает транзакцию
 
 Ответ содержит объект со следующими параметрами:
@@ -318,6 +310,72 @@ HOST: http://api.bingo.boom
 
             {
                 "error": "Not valid wallet_id"
+            }
+
+## Отмена операции [/transactions/cancel{pt_id}]
+Отмена транзакции, разблокировка средств
+
++ Parameters
+
+    + pt_id (numeric) ... Уникальный номер транзакции
+
++ Model (application/json)
+
+    + Body
+
+            {
+                "pt_id": 1,
+                "wallet_id": 654644,
+                "amount": "10.00",
+                "destination": "request",
+                "status": "canceled",
+                "created_at": "2014-08-01T23:00:49-07:00"
+            }
+            
+### Отмена [POST]
+Отменяет транзакцию
+
+Ответ содержит объект со следующими параметрами:
+
+- `pt_id` - уникальный номер транзакции
+- `wallet_id` - уникальный номер кошелька
+- `amount` - сумма денег для перевода
+- `destination` - направление перевода
+- `status` - текущее состояние перевода
+- `created_at` - дата и время создания
+
+
+---
+
++ Request (application/json)
+    + Body
+
+            {
+                "auth": {
+                    "login": "megaPeople",
+                    "pass": "7c94566cd9aba3680d19e1b000a948ffbca075fd320956b23b6a1f3a0d28ff1f"
+                },
+                "pt_id": 1234
+            }
+
++ Response 200
+
+    [Отмена операции][]
+    
++ Response 401
+
+    + Body
+
+            {
+                "error": "Invalid login or password"
+            }
+
++ Response 403
+
+    + Body
+
+            {
+                "error": "Not valid pt_id"
             }
 
 
